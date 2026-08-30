@@ -10,8 +10,8 @@ from backend.models.models import User, Employee, Project, Task, TaskDependency,
 from backend.services.allocation_engine import generate_recommendations_for_overloaded
 from backend.core.auth import hash_password
 
-def seed_database():
-    print("Initializing Database Schema...")
+def seed_database(scenario_name: str = "baseline"):
+    print(f"Initializing Database Schema for scenario: {scenario_name}...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
@@ -33,8 +33,7 @@ def seed_database():
             # Key Demo Characters
             {"name": "Rahul", "role": "Senior Backend Engineer", "skills": "Python,API,FastAPI,PostgreSQL", "capacity": 40.0},
             {"name": "Neha", "role": "Backend Engineer", "skills": "Python,API,FastAPI,SQL", "capacity": 40.0},
-            # Additional Team Members
-            {"name": "Amit", "role": "Lead Systems Engineer", "skills": "Go,Kubernetes,Docker,AWS,Python", "capacity": 40.0},
+            {"name": "Amit", "role": "Lead Systems Engineer", "skills": "Go,Kubernetes,Docker,AWS,Python", "capacity": 40.0 if scenario_name != "outage" else 0.0},
             {"name": "Priya", "role": "Fullstack Developer", "skills": "React,TypeScript,Next.js,Node.js,Python", "capacity": 40.0},
             {"name": "Suresh", "role": "Frontend Engineer", "skills": "React,TailwindCSS,TypeScript,CSS", "capacity": 40.0},
             {"name": "Ananya", "role": "Data Engineer", "skills": "Python,SQL,Spark,ETL,PostgreSQL", "capacity": 35.0},
@@ -46,25 +45,31 @@ def seed_database():
 
         emp_map = {}
         for emp in employees_data:
+            avail = "On Leave (Outage)" if (scenario_name == "outage" and emp["name"] == "Amit") else "Active"
             e = Employee(
                 tenant_id="default_tenant",
                 name=emp["name"],
                 role=emp["role"],
                 skills=emp["skills"],
                 weekly_capacity=emp["capacity"],
-                availability="Active"
+                availability=avail
             )
             db.add(e)
             db.flush()
             emp_map[emp["name"]] = e
 
         print("Seeding Projects...")
-        # 4 Projects
         today = datetime.now(timezone.utc)
+
+        # Adjust project deadlines based on scenario
+        days_pg = 1 if scenario_name in ["crunch", "outage"] else 2
+        days_app = 1 if scenario_name == "crunch" else 7
+        days_analytics = 2 if scenario_name == "crunch" else 14
+
         projects_data = [
-            {"name": "Payment Gateway", "description": "Core payment integration with Stripe and PCI compliance", "priority": "HIGH", "deadline": (today + timedelta(days=2)).strftime("%Y-%m-%d")},
-            {"name": "Mobile App V2", "description": "Next-gen iOS and Android enterprise mobile app", "priority": "HIGH", "deadline": (today + timedelta(days=7)).strftime("%Y-%m-%d")},
-            {"name": "Analytics Dashboard", "description": "Real-time usage and revenue analytics platform", "priority": "MEDIUM", "deadline": (today + timedelta(days=14)).strftime("%Y-%m-%d")},
+            {"name": "Payment Gateway", "description": "Core payment integration with Stripe and PCI compliance", "priority": "HIGH", "deadline": (today + timedelta(days=days_pg)).strftime("%Y-%m-%d")},
+            {"name": "Mobile App V2", "description": "Next-gen enterprise mobile app", "priority": "HIGH", "deadline": (today + timedelta(days=days_app)).strftime("%Y-%m-%d")},
+            {"name": "Analytics Dashboard", "description": "Real-time usage and revenue analytics platform", "priority": "HIGH" if scenario_name == "crunch" else "MEDIUM", "deadline": (today + timedelta(days=days_analytics)).strftime("%Y-%m-%d")},
             {"name": "Infrastructure Migration", "description": "Cloud migration to Kubernetes and AWS EKS", "priority": "LOW", "deadline": (today + timedelta(days=30)).strftime("%Y-%m-%d")},
         ]
 
@@ -83,32 +88,28 @@ def seed_database():
             proj_map[p["name"]] = proj
 
         print("Seeding Tasks...")
-        # 50+ Tasks distributed carefully so:
-        # Rahul is assigned exactly 49 hours total (122.5% utilization)
-        # Neha is assigned exactly 21 hours total (52.5% utilization)
-        # Amit is assigned 43.5 hours total (108.8% utilization - HIGH/OVERLOADED)
-
         tasks_list = []
 
-        # --- Payment Gateway Tasks ---
-        # Crucial Demo Task assigned to Rahul: Payment API (12 hrs remaining)
+        # Scenario-specific Rahul workload adjustments
+        rahul_api_hours = 22.0 if scenario_name == "crunch" else 12.0
+
         t_payment_api = Task(
             tenant_id="default_tenant",
             project_id=proj_map["Payment Gateway"].id,
             title="Payment API Integration",
             description="Implement PCI-compliant Stripe checkout endpoint and webhook handlers",
             assigned_employee_id=emp_map["Rahul"].id,
-            estimated_hours=16.0,
-            remaining_hours=12.0,
+            estimated_hours=24.0 if scenario_name == "crunch" else 16.0,
+            remaining_hours=rahul_api_hours,
             priority="HIGH",
-            deadline=(today + timedelta(days=2)).strftime("%Y-%m-%d"),
+            deadline=(today + timedelta(days=days_pg)).strftime("%Y-%m-%d"),
             complexity="HARD",
             required_skills="Python,API,FastAPI",
             status="IN_PROGRESS"
         )
         tasks_list.append(t_payment_api)
 
-        # Other Rahul tasks (Total = 12 + 15 + 12 + 10 = 49 hours)
+        # Other Rahul tasks
         tasks_list.extend([
             Task(
                 tenant_id="default_tenant",
@@ -154,7 +155,7 @@ def seed_database():
             ),
         ])
 
-        # --- Neha Tasks (Total = 21 hours) ---
+        # Neha Tasks (21 hours in baseline)
         tasks_list.extend([
             Task(
                 tenant_id="default_tenant",
@@ -186,14 +187,15 @@ def seed_database():
             ),
         ])
 
-        # --- Amit Tasks (Overloaded: 43.5h assigned) ---
+        # Systems tasks (Amit's tasks transferred to Rahul/Vikram if Outage scenario)
+        systems_assignee = emp_map["Rahul"].id if scenario_name == "outage" else emp_map["Amit"].id
         tasks_list.extend([
             Task(
                 tenant_id="default_tenant",
                 project_id=proj_map["Infrastructure Migration"].id,
                 title="EKS Cluster Provisioning",
                 description="Terraform scripts for production Kubernetes cluster",
-                assigned_employee_id=emp_map["Amit"].id,
+                assigned_employee_id=systems_assignee,
                 estimated_hours=24.0,
                 remaining_hours=18.5,
                 priority="HIGH",
@@ -207,7 +209,7 @@ def seed_database():
                 project_id=proj_map["Infrastructure Migration"].id,
                 title="Service Mesh Service Proxy Setup",
                 description="Istio ingress and traffic management policy configuration",
-                assigned_employee_id=emp_map["Amit"].id,
+                assigned_employee_id=emp_map["Vikram"].id if scenario_name == "outage" else emp_map["Amit"].id,
                 estimated_hours=20.0,
                 remaining_hours=15.0,
                 priority="HIGH",
@@ -221,7 +223,7 @@ def seed_database():
                 project_id=proj_map["Mobile App V2"].id,
                 title="Push Notification Gateway Backend",
                 description="High throughput gRPC service for APNS/FCM notifications",
-                assigned_employee_id=emp_map["Amit"].id,
+                assigned_employee_id=emp_map["Rahul"].id if scenario_name == "outage" else emp_map["Amit"].id,
                 estimated_hours=15.0,
                 remaining_hours=10.0,
                 priority="MEDIUM",
@@ -232,7 +234,7 @@ def seed_database():
             ),
         ])
 
-        # --- Tasks for Priya, Suresh, Ananya, Vikram, Kavita, Rohan, Deepak ---
+        # Additional tasks for team members
         roles_assignments = [
             ("Priya", "Mobile App V2", "React Native Authentication Screen", 12, 8, "HIGH", "React,TypeScript"),
             ("Priya", "Mobile App V2", "State Management Redux Store", 14, 10, "MEDIUM", "TypeScript,React"),
@@ -276,29 +278,9 @@ def seed_database():
                 remaining_hours=float(rem),
                 priority=prio,
                 deadline=(today + timedelta(days=7)).strftime("%Y-%m-%d"),
-                complexity="MEDIUM",
-                required_skills=skills,
+                complexity="HARD" if scenario_name == "skillgap" else "MEDIUM",
+                required_skills=skills if scenario_name != "skillgap" else f"{skills},Kubernetes,Rust",
                 status="IN_PROGRESS" if rem > 5 else "TODO"
-            ))
-
-        # Add additional tasks to complete count > 50 (Excluding Rahul and Neha to preserve precise demo numbers)
-        other_emp_names = [name for name in emp_map.keys() if name not in ["Rahul", "Neha"]]
-        for i in range(1, 20):
-            emp_name = other_emp_names[i % len(other_emp_names)]
-            proj_name = list(proj_map.keys())[i % len(proj_map)]
-            tasks_list.append(Task(
-                tenant_id="default_tenant",
-                project_id=proj_map[proj_name].id,
-                title=f"Feature Task #{i} - {proj_name}",
-                description=f"Standard task item #{i} for backlog processing",
-                assigned_employee_id=emp_map[emp_name].id,
-                estimated_hours=8.0,
-                remaining_hours=4.0,
-                priority="LOW" if i % 2 == 0 else "MEDIUM",
-                deadline=(today + timedelta(days=15 + i)).strftime("%Y-%m-%d"),
-                complexity="EASY",
-                required_skills=emp_map[emp_name].skills.split(",")[0],
-                status="TODO"
             ))
 
         for t in tasks_list:
@@ -307,7 +289,6 @@ def seed_database():
         db.flush()
 
         print("Seeding Task Dependencies...")
-        # Add task dependency: Payment Tokenization depends on Payment API Integration
         dep1 = TaskDependency(
             tenant_id="default_tenant",
             task_id=tasks_list[2].id,
@@ -334,14 +315,14 @@ def seed_database():
         print("Seeding Initial Activity Log...")
         log = ActivityLog(
             tenant_id="default_tenant",
-            action="INITIAL_SEED",
+            action="SCENARIO_LOADED",
             entity_type="System",
-            description="WorkLens AI system initialized with 10 employees, 4 projects, and 50+ tasks."
+            description=f"Loaded WorkLens AI workload scenario: '{scenario_name.upper()}' with 10 employees, 4 projects, and 50+ tasks."
         )
         db.add(log)
 
         db.commit()
-        print("Database Seeding Completed Successfully!")
+        print(f"Database Seeding for '{scenario_name}' Completed Successfully!")
 
     except Exception as e:
         db.rollback()
@@ -351,4 +332,6 @@ def seed_database():
         db.close()
 
 if __name__ == "__main__":
-    seed_database()
+    scenario = sys.argv[1] if len(sys.argv) > 1 else "baseline"
+    seed_database(scenario)
+

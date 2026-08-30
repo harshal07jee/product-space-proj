@@ -95,12 +95,31 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
           </button>
         </div>
 
-        {/* Format Spec */}
-        <div className="bg-slate-900/60 rounded-xl p-3.5 border border-slate-800 text-xs space-y-1">
-          <span className="text-[10px] font-bold uppercase text-indigo-400 block">
-            Expected Headers ({activeTab}.csv)
-          </span>
-          <code className="text-slate-300 block font-mono text-[11px] bg-slate-950 p-2 rounded-lg">
+        {/* Format Spec & Sample Download */}
+        <div className="bg-slate-900/60 rounded-xl p-3.5 border border-slate-800 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase text-indigo-400">
+              Expected Headers ({activeTab}.csv)
+            </span>
+            <button
+              onClick={() => {
+                const sampleEmployees = "name,role,skills,weekly_capacity\nRahul,Senior Backend Engineer,Python;API;FastAPI;PostgreSQL,40\nNeha,Backend Engineer,Python;API;SQL,40\nAmit,Systems Engineer,Go;Kubernetes;Docker,40";
+                const sampleTasks = "title,project,assigned_employee,estimated_hours,remaining_hours,priority,deadline,required_skills\nPayment API Integration,Payment Gateway,Rahul,16,12,HIGH,2026-09-15,Python;API\nDatabase Migration,Payment Gateway,Rahul,20,15,HIGH,2026-09-18,PostgreSQL;SQL\nRefund Handler,Analytics Dashboard,Neha,14,10,MEDIUM,2026-09-20,Python;FastAPI";
+                const content = activeTab === "employees" ? sampleEmployees : sampleTasks;
+                const blob = new Blob([content], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${activeTab}_sample.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 underline"
+            >
+              Download Sample CSV
+            </button>
+          </div>
+          <code className="text-slate-300 block font-mono text-[11px] bg-slate-950 p-2 rounded-lg overflow-x-auto">
             {activeTab === "employees"
               ? "name,role,skills,weekly_capacity"
               : "title,project,assigned_employee,estimated_hours,remaining_hours,priority,deadline,required_skills"}

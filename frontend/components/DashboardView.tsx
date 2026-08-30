@@ -1,15 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { DashboardData, Recommendation } from "@/lib/types";
-import { Users, AlertTriangle, ShieldCheck, Clock, ArrowRight, Sparkles, CheckCircle2, TrendingUp } from "lucide-react";
+import { Users, AlertTriangle, ShieldCheck, Clock, ArrowRight, Sparkles, CheckCircle2, TrendingUp, Upload, FileSpreadsheet, RefreshCw } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { uploadCSV } from "@/lib/api";
 
 interface DashboardViewProps {
   data: DashboardData;
   onApproveRecommendation: (id: number) => void;
   onSelectTab: (tab: "team" | "projects" | "recommendations") => void;
   isApproving: number | null;
+  onOpenCSVModal?: () => void;
+  onRefreshData?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -17,7 +20,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onApproveRecommendation,
   onSelectTab,
   isApproving,
+  onOpenCSVModal,
+  onRefreshData,
 }) => {
+  const [quickUploadType, setQuickUploadType] = useState<"employees" | "tasks">("tasks");
+  const [isQuickUploading, setIsQuickUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  const handleQuickFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsQuickUploading(true);
+    setUploadStatus(null);
+    try {
+      // Auto-detect type based on filename if possible
+      const fname = file.name.toLowerCase();
+      const targetType = fname.includes("employee") ? "employees" : fname.includes("task") ? "tasks" : quickUploadType;
+
+      const res = await uploadCSV(targetType, file);
+      if (res.success) {
+        setUploadStatus(`Uploaded! ${res.created_count || 0} created, ${res.updated_count || 0} updated.`);
+        if (onRefreshData) onRefreshData();
+      } else {
+        setUploadStatus(`Warning: ${res.errors.join("; ")}`);
+      }
+    } catch (err: any) {
+      setUploadStatus(`Failed: ${err.message}`);
+    } finally {
+      setIsQuickUploading(false);
+    }
+  };
   const getBarColor = (status: string) => {
     switch (status) {
       case "OVERLOADED":
@@ -63,6 +95,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Quick Direct CSV Upload Bar */}
+      <div className="glass-panel rounded-2xl p-4 border border-indigo-500/20 bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="h-10 w-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <FileSpreadsheet className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-white flex items-center space-x-2">
+              <span>Direct Dashboard CSV Import</span>
+              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                LIVE UPDATE
+              </span>
+            </h4>
+            <p className="text-[11px] text-slate-400">
+              Upload custom <code className="text-indigo-300">employees.csv</code> or <code className="text-indigo-300">tasks.csv</code> to automatically refresh workload, project risks, and AI recommendations.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 w-full sm:w-auto shrink-0">
+          {uploadStatus && (
+            <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+              {uploadStatus}
+            </span>
+          )}
+
+          <label className="cursor-pointer px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition-all flex items-center space-x-2 shrink-0">
+            {isQuickUploading ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            <span>Upload CSV File</span>
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleQuickFileUpload}
+            />
+          </label>
+
+          {onOpenCSVModal && (
+            <button
+              onClick={onOpenCSVModal}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all shrink-0"
+            >
+              Templates & Details
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Team Utilization */}

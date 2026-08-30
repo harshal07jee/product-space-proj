@@ -565,11 +565,57 @@ async def import_tasks(file: UploadFile = File(...), db: Session = Depends(get_d
     result = import_tasks_csv(csv_text, db)
     return result
 
+# --- Workload Scenario API ---
+AVAILABLE_SCENARIOS = [
+    {
+        "id": "baseline",
+        "title": "Baseline Imbalance",
+        "badge": "Standard Demo",
+        "description": "Rahul overloaded @ 122.5%, Neha available @ 52.5%, Payment Gateway HIGH risk."
+    },
+    {
+        "id": "crunch",
+        "title": "Cascading Deadline Crunch",
+        "badge": "High Pressure",
+        "description": "3 projects due in < 48 hours, severe capacity deficit across multiple senior engineers."
+    },
+    {
+        "id": "outage",
+        "title": "Tech Lead Emergency Absence",
+        "badge": "Incident",
+        "description": "Lead Systems Engineer on emergency leave; 43.5 hours dumped onto remaining team."
+    },
+    {
+        "id": "skillgap",
+        "title": "Skill Bottleneck & Complexity",
+        "badge": "Skill Deficit",
+        "description": "Complex tasks requiring specialized Rust/Kubernetes skills assigned to wrong engineers."
+    }
+]
+
+@router.get("/scenarios")
+def list_scenarios():
+    return AVAILABLE_SCENARIOS
+
+@router.post("/scenarios/apply/{scenario_id}")
+def apply_scenario(scenario_id: str):
+    valid_ids = [s["id"] for s in AVAILABLE_SCENARIOS]
+    if scenario_id not in valid_ids:
+        raise HTTPException(status_code=400, detail=f"Invalid scenario ID '{scenario_id}'. Must be one of {valid_ids}")
+
+    seed_database(scenario_name=scenario_id)
+    matched = next((s for s in AVAILABLE_SCENARIOS if s["id"] == scenario_id), None)
+    return {
+        "success": True,
+        "message": f"Successfully activated workload scenario '{matched['title']}'!",
+        "scenario": matched
+    }
+
 # --- Reset/Seed API ---
 @router.post("/seed/reset")
 def reset_demo_data():
-    seed_database()
-    return {"success": True, "message": "Demo data reset successfully!"}
+    seed_database("baseline")
+    return {"success": True, "message": "Demo data reset to baseline scenario successfully!"}
 
 # --- Activity Log Endpoints ---
 @router.get("/activity-logs", response_model=List[ActivityLogResponse])

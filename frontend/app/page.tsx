@@ -11,6 +11,7 @@ import {
   approveRecommendation,
   rejectRecommendation,
   resetDemoData,
+  applyScenario,
   getStoredUser,
 } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
@@ -118,6 +119,20 @@ export default function Home() {
     }
   };
 
+  const handleSelectScenario = async (scenarioId: string) => {
+    setIsResetting(true);
+    try {
+      const res = await applyScenario(scenarioId);
+      triggerToast(res.message || `Switched to ${scenarioId} scenario.`);
+      await loadAllData();
+    } catch (err: any) {
+      console.error(err);
+      triggerToast(`Scenario Error: ${err.message}`);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const handleResetDemo = async () => {
     setIsResetting(true);
     try {
@@ -152,6 +167,7 @@ export default function Home() {
         onOpenExecutiveReport={() => setIsExecutiveReportOpen(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onResetDemo={handleResetDemo}
+        onSelectScenario={handleSelectScenario}
         isResetting={isResetting}
         currentUser={currentUser}
       />
@@ -188,6 +204,8 @@ export default function Home() {
                   onApproveRecommendation={handleApproveRecommendation}
                   onSelectTab={(tab) => setActiveTab(tab)}
                   isApproving={isApproving}
+                  onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                  onRefreshData={loadAllData}
                 />
               )}
 

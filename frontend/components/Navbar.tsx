@@ -1,6 +1,4 @@
-"use client";
-
-import React from "react";
+import React, { useState } from "react";
 import { AuthUser } from "@/lib/types";
 import {
   Brain,
@@ -11,7 +9,8 @@ import {
   FileDown,
   User,
   ShieldCheck,
-  Building
+  Building,
+  Layers
 } from "lucide-react";
 
 interface NavbarProps {
@@ -21,6 +20,7 @@ interface NavbarProps {
   onOpenExecutiveReport: () => void;
   onOpenAuthModal: () => void;
   onResetDemo: () => void;
+  onSelectScenario?: (scenarioId: string) => void;
   isResetting: boolean;
   currentUser: AuthUser | null;
 }
@@ -32,9 +32,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenExecutiveReport,
   onOpenAuthModal,
   onResetDemo,
+  onSelectScenario,
   isResetting,
   currentUser,
 }) => {
+  const [selectedScenario, setSelectedScenario] = useState("baseline");
+
+  const handleScenarioChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const scenarioId = e.target.value;
+    setSelectedScenario(scenarioId);
+    if (onSelectScenario) {
+      onSelectScenario(scenarioId);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between">
       {/* Brand & Subtitle */}
@@ -61,6 +72,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Action Controls */}
       <div className="flex items-center space-x-2 sm:space-x-2.5">
+        {/* Scenario Switcher Dropdown */}
+        {onSelectScenario && (
+          <div className="relative hidden md:flex items-center space-x-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1">
+            <Layers className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+            <select
+              value={selectedScenario}
+              onChange={handleScenarioChange}
+              className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer pr-1"
+              title="Select Workload Demo Scenario"
+            >
+              <option value="baseline" className="bg-slate-900 text-white">Scenario: Baseline Imbalance</option>
+              <option value="crunch" className="bg-slate-900 text-white">Scenario: Deadline Crunch</option>
+              <option value="outage" className="bg-slate-900 text-white">Scenario: Tech Lead Outage</option>
+              <option value="skillgap" className="bg-slate-900 text-white">Scenario: Skill Deficit</option>
+            </select>
+          </div>
+        )}
+
         {/* User Auth / Tenant Switcher Pill */}
         <button
           onClick={onOpenAuthModal}

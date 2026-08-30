@@ -336,7 +336,25 @@ export async function uploadCSV(type: "employees" | "tasks", file: File): Promis
   return res.json();
 }
 
-// --- Demo Reset ---
+// --- Demo Reset & Scenario Switcher ---
+export async function fetchScenarios(): Promise<Array<{ id: string; title: string; badge: string; description: string }>> {
+  const res = await fetch(`${API_BASE}/scenarios`, {
+    headers: getAuthHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch scenarios");
+  return res.json();
+}
+
+export async function applyScenario(scenarioId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/scenarios/apply/${scenarioId}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to apply workload scenario");
+  return res.json();
+}
+
 export async function resetDemoData(): Promise<any> {
   const res = await fetch(`${API_BASE}/seed/reset`, {
     method: "POST",
